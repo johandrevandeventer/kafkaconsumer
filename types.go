@@ -10,13 +10,14 @@ import (
 
 type OutputChannels map[string]chan any
 
-type WorkerFunc func(msg Payload, outputChannels OutputChannels, statePersister *persist.FilePersister)
+type WorkerFunc func(msg Payload, outputChannels OutputChannels, statePersister *persist.FilePersister, workerLogger *zap.Logger)
 
 type KafkaConsumer struct {
 	consumer       *kafka.Consumer
 	kafkaTopic     string
 	topicPrefix    string
-	logger         *zap.Logger
+	kafkaLogger    *zap.Logger
+	workersLogger  *zap.Logger
 	worker         WorkerFunc
 	poolSize       int
 	outputChannels OutputChannels
