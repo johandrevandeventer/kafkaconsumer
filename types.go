@@ -1,27 +1,25 @@
 package kafkaconsumer
 
 import (
+	"context"
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/johandrevandeventer/persist"
 	"go.uber.org/zap"
 )
 
-type OutputChannels map[string]chan any
+// type OutputChannels map[string]chan any
 
-type WorkerFunc func(msg Payload, outputChannels OutputChannels, statePersister *persist.FilePersister, workerLogger *zap.Logger)
+type WorkerFunc func(ctx context.Context, msg Payload, workerLogger *zap.Logger)
 
 type KafkaConsumer struct {
-	consumer       *kafka.Consumer
-	kafkaTopic     string
-	topicPrefix    string
-	kafkaLogger    *zap.Logger
-	workersLogger  *zap.Logger
-	worker         WorkerFunc
-	poolSize       int
-	outputChannels OutputChannels
-	statePersister persist.FilePersister
+	consumer      *kafka.Consumer
+	kafkaTopic    string
+	topicPrefix   string
+	kafkaLogger   *zap.Logger
+	workersLogger *zap.Logger
+	worker        WorkerFunc
+	poolSize      int
 }
 
 // Define the struct you want to pass

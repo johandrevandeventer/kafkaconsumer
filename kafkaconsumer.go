@@ -6,12 +6,11 @@ import (
 	"sync"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	"github.com/johandrevandeventer/persist"
 	"go.uber.org/zap"
 )
 
 // NewKafkaProducer initializes a new Kafka producer instance with a flexible configuration.
-func NewKafkaConsumer(config kafka.ConfigMap, kafkaTopic, topicPrefix string, kafkaLogger, workersLogger *zap.Logger, worker WorkerFunc, poolSize int, outputChannels OutputChannels, statePersister persist.FilePersister) *KafkaConsumer {
+func NewKafkaConsumer(config kafka.ConfigMap, kafkaTopic, topicPrefix string, kafkaLogger, workersLogger *zap.Logger, worker WorkerFunc, poolSize int) *KafkaConsumer {
 	consumer, err := kafka.NewConsumer(&config)
 	if err != nil {
 		kafkaLogger.Fatal("Failed to create consumer", zap.Error(err))
@@ -20,15 +19,13 @@ func NewKafkaConsumer(config kafka.ConfigMap, kafkaTopic, topicPrefix string, ka
 	kafkaLogger.Info("Kafka consumer created successfully")
 
 	return &KafkaConsumer{
-		consumer:       consumer,
-		kafkaTopic:     kafkaTopic,
-		topicPrefix:    topicPrefix,
-		kafkaLogger:    kafkaLogger,
-		workersLogger:  workersLogger,
-		worker:         worker,
-		poolSize:       poolSize,
-		outputChannels: outputChannels,
-		statePersister: statePersister,
+		consumer:      consumer,
+		kafkaTopic:    kafkaTopic,
+		topicPrefix:   topicPrefix,
+		kafkaLogger:   kafkaLogger,
+		workersLogger: workersLogger,
+		worker:        worker,
+		poolSize:      poolSize,
 	}
 }
 
@@ -58,7 +55,7 @@ func (kc *KafkaConsumer) ConsumeMessages(ctx context.Context) {
 				msg := kc.formatPayload(e)
 				if len(msg.MqttTopic) >= len(kc.topicPrefix) && msg.MqttTopic[:len(kc.topicPrefix)] == kc.topicPrefix {
 					kc.kafkaLogger.Info("Received message", zap.String("kafka_topic", *e.TopicPartition.Topic), zap.String("mqtt_topic", msg.MqttTopic), zap.Int64("offset", int64(e.TopicPartition.Offset)))
-					kc.runWorker(kc.worker, msg)
+					kc.runWorker(ctx, kc.worker, msg)
 				} else {
 					kc.kafkaLogger.Warn("Skipping message", zap.String("kafka_topic", *e.TopicPartition.Topic), zap.String("mqtt_topic", msg.MqttTopic), zap.Int64("offset", int64(e.TopicPartition.Offset)))
 				}
@@ -84,12 +81,12 @@ func (kc *KafkaConsumer) formatPayload(msg *kafka.Message) Payload {
 }
 
 // runWorker executes the worker in a goroutine
-func (kc *KafkaConsumer) runWorker(worker WorkerFunc, msg Payload) {
+func (kc *KafkaConsumer) runWorker(ctx context.Context, worker WorkerFunc, msg Payload) {
 	var wg sync.WaitGroup
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		worker(msg, kc.outputChannels, &kc.statePersister, kc.workersLogger)
+		worker(ctx, msg, kc.workersLogger)
 	}()
 	if kc.poolSize > 0 {
 		wg.Wait() // Wait for all workers to finish if poolSize > 0
